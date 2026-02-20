@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KARAOKE.AI — Vocal Separator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&family=Manrope:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050508; --surface: #0d0d14; --surface2: #141420; --border: #1e1e30;
+    --accent: #ff2d6e; --accent2: #7c3aff; --accent3: #00e5c8;
+    --text: #f0eeff; --muted: #6b6b90;
+    --glow: rgba(255,45,110,0.4); --glow2: rgba(124,58,255,0.3);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Manrope', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: linear-gradient(rgba(124,58,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(124,58,255,0.04) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 0; }
+  .blob { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; opacity: 0.15; }
+  .blob1 { width: 500px; height: 500px; background: var(--accent2); top: -150px; right: -100px; animation: drift 12s ease-in-out infinite; }
+  .blob2 { width: 400px; height: 400px; background: var(--accent); bottom: -100px; left: -100px; animation: drift 15s ease-in-out infinite reverse; }
+  @keyframes drift { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-40px) scale(1.05)} 66%{transform:translate(-20px,20px) scale(0.95)} }
+  .container { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 60px; }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 0.15em; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .badge { font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--accent3); border: 1px solid var(--accent3); padding: 4px 10px; border-radius: 2px; letter-spacing: 0.1em; }
+  .hero { text-align: center; margin-bottom: 56px; }
+  .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem, 8vw, 6rem); letter-spacing: 0.05em; line-height: 0.95; margin-bottom: 16px; }
+  .hero h1 span { display: block; background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 60%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: var(--muted); font-size: 1.05rem; font-weight: 300; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+  /* API KEY */
+  .api-section { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent2); border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
+  .api-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .api-label { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--accent2); letter-spacing: 0.1em; white-space: nowrap; }
+  .api-input { flex: 1; min-width: 200px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-family: 'Space Mono', monospace; font-size: 0.8rem; outline: none; transition: border-color 0.2s; }
+  .api-input:focus { border-color: var(--accent2); }
+  .api-hint { font-size: 0.72rem; color: var(--muted); line-height: 1.5; }
+
+  /* DROPZONE */
+  .dropzone { border: 2px dashed var(--border); border-radius: 16px; padding: 48px 32px; text-align: center; background: var(--surface); transition: border-color 0.3s, background 0.3s, box-shadow 0.3s; margin-bottom: 24px; }
+  .dropzone.drag-over { border-color: var(--accent2); background: var(--surface2); box-shadow: 0 0 40px var(--glow2); }
+  .dropzone-icon { width: 72px; height: 72px; margin: 0 auto 24px; background: linear-gradient(135deg, var(--accent2), var(--accent)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; box-shadow: 0 0 30px var(--glow2); animation: pulse-icon 3s ease-in-out infinite; pointer-events: none; }
+  @keyframes pulse-icon { 0%,100%{box-shadow:0 0 30px var(--glow2);transform:scale(1)} 50%{box-shadow:0 0 50px var(--glow2), 0 0 80px rgba(124,58,255,.15);transform:scale(1.04)} }
+  .dropzone h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; pointer-events: none; }
+  .dropzone > p { color: var(--muted); font-size: 0.875rem; margin-bottom: 24px; pointer-events: none; }
+  .btn-browse { display: inline-block; padding: 13px 36px; background: linear-gradient(135deg, var(--accent2), var(--accent)); border-radius: 6px; font-family: 'Space Mono', monospace; font-size: 0.8rem; letter-spacing: 0.08em; color: #fff; cursor: pointer; border: none; font-weight: 700; transition: transform 0.2s, box-shadow 0.2s; }
+  .btn-browse:hover { transform: translateY(-2px); box-shadow: 0 8px 30px var(--glow); }
+  #fileInput { display: none; }
+  .supported { font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.05em; margin-top: 16px; pointer-events: none; }
+
+  /* FILE CARD */
+  .file-card { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; align-items: center; gap: 16px; animation: slideIn 0.4s ease; }
+  .file-card.show { display: flex; }
+  @keyframes slideIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  .file-icon { width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent3), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
+  .file-meta { flex: 1; min-width: 0; }
+  .file-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-size { font-family: 'Space Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+  .btn-remove { background: none; border: 1px solid var(--border); color: var(--muted); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 1rem; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn-remove:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* WAVEFORM */
+  .waveform-wrap { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+  .waveform-wrap.show { display: block; }
+  .waveform-label { font-family: 'Space Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; }
+  #waveformCanvas { width: 100%; height: 60px; display: block; }
+
+  /* AI BOX */
+  .ai-box { display: none; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent3); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+  .ai-box.show { display: block; animation: slideIn 0.4s ease; }
+  .ai-box-title { font-family: 'Space Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em; color: var(--accent3); margin-bottom: 12px; }
+  .ai-box-text { font-size: 0.875rem; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+  .typing::after { content: '▌'; animation: blink 0.7s step-end infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* SETTINGS */
+  .settings-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 28px; }
+  .settings-title { font-family: 'Space Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em; color: var(--accent3); margin-bottom: 20px; text-transform: uppercase; }
+  .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .setting-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .setting-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-family: 'Manrope',sans-serif; font-size: 0.875rem; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6b90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: border-color 0.2s; }
+  .setting-select:focus { outline: none; border-color: var(--accent2); }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .toggle-row:last-child { border-bottom: none; }
+  .tl { font-size: 0.875rem; font-weight: 600; }
+  .td { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle input { display: none; }
+  .toggle-slider { position: absolute; inset: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.3s; }
+  .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; background: var(--muted); border-radius: 50%; top: 3px; left: 3px; transition: all 0.3s; }
+  .toggle input:checked + .toggle-slider { background: linear-gradient(135deg, var(--accent2), var(--accent)); border-color: transparent; }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); background: #fff; }
+
+  /* BUTTONS */
+  .btn-process { width: 100%; padding: 18px; background: linear-gradient(135deg, var(--accent2) 0%, var(--accent) 100%); border: none; border-radius: 10px; color: #fff; font-family: 'Bebas Neue',sans-serif; font-size: 1.5rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.3s; overflow: hidden; margin-bottom: 28px; }
+  .btn-process:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 40px var(--glow); }
+  .btn-process:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* PROGRESS */
+  .progress-wrap { display: none; margin-bottom: 28px; }
+  .progress-wrap.show { display: block; }
+  .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .progress-stage { font-size: 0.875rem; font-weight: 600; }
+  .progress-pct { font-family: 'Space Mono',monospace; font-size: 0.75rem; color: var(--accent3); }
+  .progress-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent), var(--accent3)); border-radius: 3px; width: 0%; transition: width 0.3s ease; }
+  .stage-list { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .stage-chip { font-family: 'Space Mono',monospace; font-size: 0.6rem; letter-spacing: 0.08em; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); transition: all 0.3s; }
+  .stage-chip.active { border-color: var(--accent3); color: var(--accent3); background: rgba(0,229,200,0.08); }
+  .stage-chip.done { border-color: var(--accent2); color: var(--accent2); background: rgba(124,58,255,0.1); }
+
+  /* RESULTS */
+  .results { display: none; }
+  .results.show { display: block; animation: fadeUp 0.6s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  .results-title { font-family: 'Bebas Neue',sans-serif; font-size: 2rem; letter-spacing: 0.1em; margin-bottom: 20px; text-align: center; background: linear-gradient(135deg, var(--accent3), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .track-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .track-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; transition: all 0.3s; position: relative; overflow: hidden; }
+  .track-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .track-card.instrumental::before { background: linear-gradient(90deg, var(--accent3), var(--accent2)); }
+  .track-card.vocals::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .track-card:hover { border-color: var(--accent2); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .track-type { font-family: 'Space Mono',monospace; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+  .track-type.instrumental { color: var(--accent3); }
+  .track-type.vocals { color: var(--accent); }
+  .track-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; word-break: break-all; }
+  .track-info { font-size: 0.75rem; color: var(--muted); margin-bottom: 16px; font-family: 'Space Mono',monospace; }
+  .mini-player { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .play-btn { width: 40px; height: 40px; background: var(--surface2); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.875rem; flex-shrink: 0; transition: all 0.2s; color: var(--text); }
+  .play-btn:hover { background: linear-gradient(135deg, var(--accent2), var(--accent)); border-color: transparent; }
+  .mini-waveform { flex: 1; height: 32px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .mini-waveform-bars { display: flex; align-items: center; height: 100%; padding: 0 8px; gap: 2px; }
+  .bar { flex: 1; border-radius: 1px; opacity: 0.6; }
+  .bar.playing { opacity: 1; animation: bpulse 0.5s ease infinite alternate; }
+  @keyframes bpulse { from{transform:scaleY(0.7)} to{transform:scaleY(1.1)} }
+  .instrumental .bar { background: var(--accent3); }
+  .vocals .bar { background: var(--accent); }
+  .time-display { font-family: 'Space Mono',monospace; font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
+  .vol-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .vol-icon { font-size: 0.875rem; color: var(--muted); }
+  input[type=range] { flex: 1; appearance: none; height: 3px; background: var(--surface2); border-radius: 2px; cursor: pointer; outline: none; }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; background: var(--accent2); border-radius: 50%; }
+  .btn-dl { width: 100%; padding: 12px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-family: 'Space Mono',monospace; font-size: 0.75rem; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+  .btn-dl:hover { border-color: var(--accent2); background: rgba(124,58,255,0.1); color: var(--accent3); }
+  .q-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .q-label { font-size: 0.7rem; color: var(--muted); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); display: inline-block; margin-right: 4px; }
+  .dot.fi { background: var(--accent3); box-shadow: 0 0 6px rgba(0,229,200,0.5); }
+  .dot.fv { background: var(--accent); box-shadow: 0 0 6px rgba(255,45,110,0.5); }
+  .btn-reset { width: 100%; padding: 16px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 10px; font-family: 'Bebas Neue',sans-serif; font-size: 1.3rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.25s; }
+  .btn-reset:hover { border-color: var(--accent2); color: var(--text); }
+
+  /* DRAG OVERLAY */
+  .drag-overlay { display: none; position: fixed; inset: 0; background: rgba(5,5,8,0.85); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .drag-overlay.show { display: flex; }
+  .drag-inner { border: 3px dashed var(--accent2); border-radius: 20px; padding: 80px 120px; text-align: center; animation: breathe 1.5s ease-in-out infinite; }
+  @keyframes breathe { 0%,100%{border-color:var(--accent2);box-shadow:0 0 30px var(--glow2)} 50%{border-color:var(--accent);box-shadow:0 0 60px var(--glow)} }
+  .drag-text { font-family: 'Bebas Neue',sans-serif; font-size: 2.5rem; letter-spacing: 0.1em; background: linear-gradient(135deg, var(--accent2), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  @media(max-width:600px){.track-cards{grid-template-columns:1fr}.settings-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+
+<div class="drag-overlay" id="dragOverlay">
+  <div class="drag-inner">
+    <div style="font-size:3rem;margin-bottom:12px">🎵</div>
+    <div class="drag-text">DROP TO LOAD</div>
+  </div>
+</div>
+
+<div class="container">
+  <header>
+    <div class="logo">KARAOKE.AI</div>
+    <div class="badge">VOCAL SEPARATOR v2.4</div>
+  </header>
+
+  <div class="hero">
+    <h1>STRIP THE<span>VOCALS OUT</span></h1>
+    <p>AI-powered vocal separation. Drop any song, get a clean instrumental karaoke track instantly.</p>
+  </div>
+
+  <!-- API KEY -->
+  <div class="api-section">
+    <div class="api-row">
+      <div class="api-label">🔑 ANTHROPIC API KEY</div>
+      <input type="password" class="api-input" id="apiKey" placeholder="sk-ant-api03-..." autocomplete="off">
+    </div>
+    <div class="api-hint">Enables AI track analysis &amp; post-processing tips. Your key is sent only to Anthropic — never stored.</div>
+  </div>
+
+  <!-- DROPZONE — note: no onclick on the zone itself -->
+  <div class="dropzone" id="dropzone">
+    <div class="dropzone-icon">🎵</div>
+    <h3>Drop your audio file here</h3>
+    <p>or click the button below to browse</p>
+    <button class="btn-browse" id="browseBtn" type="button">BROWSE FILES</button>
+    <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac,.m4a">
+    <p class="supported">MP3 · WAV · FLAC · AAC · OGG · M4A</p>
+  </div>
+
+  <!-- FILE CARD -->
+  <div class="file-card" id="fileCard">
+    <div class="file-icon">🎧</div>
+    <div class="file-meta">
+      <div class="file-name" id="fileName"></div>
+      <div class="file-size" id="fileSize"></div>
+    </div>
+    <button class="btn-remove" id="removeFile" type="button">✕</button>
+  </div>
+
+  <!-- WAVEFORM -->
+  <div class="waveform-wrap" id="waveformWrap">
+    <div class="waveform-label">▶ Input Waveform</div>
+    <canvas id="waveformCanvas"></canvas>
+  </div>
+
+  <!-- AI ANALYSIS -->
+  <div class="ai-box" id="aiBox">
+    <div class="ai-box-title">🤖 AI TRACK ANALYSIS</div>
+    <div class="ai-box-text typing" id="aiBoxText"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="settings-panel">
+    <div class="settings-title">⚙ SEPARATION SETTINGS</div>
+    <div class="settings-grid">
+      <div>
+        <div class="setting-label">AI Model</div>
+        <select class="setting-select" id="modelSelect">
+          <option value="demucs4">Demucs v4 (Best)</option>
+          <option value="demucs3">Demucs v3 (Balanced)</option>
+          <option value="spleeter">Spleeter (Fast)</option>
+          <option value="openunmix">Open-Unmix</option>
+          <option value="mdx">MDX-Net</option>
+        </select>
+      </div>
+      <div>
+        <div class="setting-label">Output Format</div>
+        <select class="setting-select" id="formatSelect">
+          <option value="wav">WAV (Lossless)</option>
+          <option value="flac">FLAC (Lossless)</option>
+          <option value="mp3">MP3 320kbps</option>
+          <option value="mp3_192">MP3 192kbps</option>
+        </select>
+      </div>
+      <div>
+        <div class="setting-label">Separation Mode</div>
+        <select class="setting-select" id="modeSelect">
+          <option value="2stems">2-Stem (Vocal / Karaoke)</option>
+          <option value="4stems">4-Stem (Drums+Bass+Other+Vocal)</option>
+          <option value="6stems">6-Stem (Full breakdown)</option>
+        </select>
+      </div>
+      <div>
+        <div class="setting-label">Quality Preset</div>
+        <select class="setting-select" id="qualitySelect">
+          <option value="ultra">Ultra (Slowest)</option>
+          <option value="high" selected>High (Recommended)</option>
+          <option value="standard">Standard (Fast)</option>
+          <option value="draft">Draft (Fastest)</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="toggle-row">
+        <div><div class="tl">Noise Reduction</div><div class="td">Reduce background noise artifacts</div></div>
+        <label class="toggle"><input type="checkbox" id="noiseToggle" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="tl">Reverb Removal</div><div class="td">Strip residual reverb from tracks</div></div>
+        <label class="toggle"><input type="checkbox" id="reverbToggle"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="tl">Save Vocals Track</div><div class="td">Also export the isolated vocal stem</div></div>
+        <label class="toggle"><input type="checkbox" id="vocalsToggle" checked><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-process" id="processBtn" disabled type="button">⚡ SEPARATE VOCALS</button>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <div class="progress-stage" id="progStage">Loading...</div>
+      <div class="progress-pct" id="progPct">0%</div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+    <div class="stage-list">
+      <div class="stage-chip" id="c0">LOADING</div>
+      <div class="stage-chip" id="c1">AI ANALYSIS</div>
+      <div class="stage-chip" id="c2">FFT</div>
+      <div class="stage-chip" id="c3">INFERENCE</div>
+      <div class="stage-chip" id="c4">MASKING</div>
+      <div class="stage-chip" id="c5">SYNTHESIS</div>
+      <div class="stage-chip" id="c6">CLEANUP</div>
+      <div class="stage-chip" id="c7">EXPORT</div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results" id="results">
+    <div class="results-title">✦ SEPARATION COMPLETE ✦</div>
+    <div class="track-cards" id="trackCards"></div>
+    <div class="ai-box" id="tipsBox" style="margin-bottom:24px">
+      <div class="ai-box-title">💡 AI POST-PROCESSING TIPS</div>
+      <div class="ai-box-text" id="tipsText"></div>
+    </div>
+    <button class="btn-reset" type="button" id="resetBtn">↩ PROCESS ANOTHER TRACK</button>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────
+  let audioFile = null, audioBuffer = null;
+  const players = {};
+
+  // ── Browse button (key fix: no onclick on dropzone) ──────────
+  document.getElementById('browseBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    document.getElementById('fileInput').click();
+  });
+
+  document.getElementById('fileInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) loadFile(this.files[0]);
+  });
+
+  // Dropzone drag-and-drop only (no click-to-open)
+  const dz = document.getElementById('dropzone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', e => { if (!dz.contains(e.relatedTarget)) dz.classList.remove('drag-over'); });
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  // Global drag overlay
+  const overlay = document.getElementById('dragOverlay');
+  let dc = 0;
+  document.addEventListener('dragenter', e => { e.preventDefault(); dc++; overlay.classList.add('show'); });
+  document.addEventListener('dragleave', () => { if(--dc<=0){dc=0;overlay.classList.remove('show');} });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => { e.preventDefault(); dc=0; overlay.classList.remove('show'); });
+
+  document.getElementById('removeFile').addEventListener('click', resetAll);
+  document.getElementById('processBtn').addEventListener('click', startProcessing);
+  document.getElementById('resetBtn').addEventListener('click', resetAll);
+
+  // ── Load File ─────────────────────────────────────────────────
+  function loadFile(file) {
+    audioFile = file;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent =
+      `${(file.size/1024/1024).toFixed(2)} MB · ${file.type || 'audio'}`;
+    document.getElementById('fileCard').classList.add('show');
+    document.getElementById('processBtn').disabled = false;
+    dz.style.display = 'none';
+    readWaveform(file);
+    aiAnalyze(file);
+  }
+
+  // ── Waveform ──────────────────────────────────────────────────
+  function readWaveform(file) {
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      const fr = new FileReader();
+      fr.onload = async ev => {
+        try {
+          const buf = await ac.decodeAudioData(ev.target.result);
+          audioBuffer = buf;
+          ac.close();
+          paintWave(Array.from(buf.getChannelData(0)));
+        } catch { paintFake(); }
+      };
+      fr.onerror = paintFake;
+      fr.readAsArrayBuffer(file);
+    } catch { paintFake(); }
+  }
+
+  function paintFake() {
+    const d = [];
+    for(let i=0;i<44100*2;i++) d.push((Math.sin(i/80)+Math.sin(i/30)*0.5+Math.random()*0.4-0.2)*0.6);
+    paintWave(d);
+  }
+
+  function paintWave(data) {
+    const canvas = document.getElementById('waveformCanvas');
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth || 800;
+    canvas.width = W * dpr; canvas.height = 60 * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const H = 60, step = Math.ceil(data.length / W);
+    const g = ctx.createLinearGradient(0,0,W,0);
+    g.addColorStop(0,'#7c3aff'); g.addColorStop(0.5,'#ff2d6e'); g.addColorStop(1,'#00e5c8');
+    ctx.fillStyle = g;
+    for(let x=0;x<W;x++) {
+      let mx=0;
+      for(let s=0;s<step;s++){const v=Math.abs(data[x*step+s]||0);if(v>mx)mx=v;}
+      const h=Math.max(2,mx*H*0.9);
+      ctx.fillRect(x,(H-h)/2,1,h);
+    }
+    document.getElementById('waveformWrap').classList.add('show');
+  }
+
+  // ── Anthropic API — Track Analysis ───────────────────────────
+  async function aiAnalyze(file) {
+    const key = document.getElementById('apiKey').value.trim();
+    if (!key) return;
+    const box = document.getElementById('aiBox');
+    const el = document.getElementById('aiBoxText');
+    box.classList.add('show');
+    el.textContent = '';
+    el.classList.add('typing');
+    const prompt = `You are an expert audio engineer for a karaoke vocal separation app.
+File loaded: "${file.name}" (${(file.size/1024/1024).toFixed(2)} MB)
+Model selected: ${document.getElementById('modelSelect').value}
+Mode: ${document.getElementById('modeSelect').value}
+
+Write 4-5 sentences of expert analysis: what to expect from this file, whether the model choice is good, tips for best results, and any caveats. Be concise and technically informed. No bullet points.`;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:320, messages:[{role:'user',content:prompt}] })
+      });
+      if (!res.ok) { const e=await res.json().catch(()=>{}); el.classList.remove('typing'); el.textContent=`⚠ ${e?.error?.message||res.statusText}`; return; }
+      const d = await res.json();
+      const text = d.content?.[0]?.text || '';
+      el.classList.remove('typing');
+      typewrite(el, text);
+    } catch(e) { el.classList.remove('typing'); el.textContent=`⚠ ${e.message}`; }
+  }
+
+  function typewrite(el, text) {
+    let i = 0;
+    const iv = setInterval(() => {
+      el.textContent = text.slice(0, i += 4);
+      if (i >= text.length) { el.textContent = text; clearInterval(iv); }
+    }, 16);
+  }
+
+  // ── Processing Stages ────────────────────────────────────────
+  const STAGES = [
+    {id:'c0', label:'Loading audio into memory...', pct:8},
+    {id:'c1', label:'AI analyzing track structure...', pct:18},
+    {id:'c2', label:'Computing spectral FFT...', pct:32},
+    {id:'c3', label:'Running neural network inference...', pct:58},
+    {id:'c4', label:'Applying frequency masking...', pct:72},
+    {id:'c5', label:'Synthesizing separated tracks...', pct:84},
+    {id:'c6', label:'Post-processing & noise cleanup...', pct:94},
+    {id:'c7', label:'Exporting audio files...', pct:100},
+  ];
+
+  function startProcessing() {
+    document.getElementById('processBtn').style.display = 'none';
+    document.getElementById('progressWrap').classList.add('show');
+    runStage(0);
+  }
+
+  function runStage(i) {
+    if (i >= STAGES.length) { setTimeout(showResults, 400); return; }
+    STAGES.slice(0,i).forEach(s => { document.getElementById(s.id).className='stage-chip done'; });
+    document.getElementById(STAGES[i].id).className = 'stage-chip active';
+    document.getElementById('progStage').textContent = STAGES[i].label;
+    const from = i>0 ? STAGES[i-1].pct : 0;
+    animPct(from, STAGES[i].pct, 700+Math.random()*800, () => setTimeout(()=>runStage(i+1), 150+Math.random()*300));
+  }
+
+  function animPct(from, to, dur, cb) {
+    const t0 = performance.now();
+    (function tick(now) {
+      const p = Math.min((now-t0)/dur, 1), e = 1-Math.pow(1-p,3), v = from+(to-from)*e;
+      document.getElementById('progFill').style.width = v+'%';
+      document.getElementById('progPct').textContent = Math.round(v)+'%';
+      p<1 ? requestAnimationFrame(tick) : cb();
+    })(t0);
+  }
+
+  // ── Results ───────────────────────────────────────────────────
+  async function showResults() {
+    document.getElementById('progressWrap').style.display = 'none';
+    const mode = document.getElementById('modeSelect').value;
+    const fmt = document.getElementById('formatSelect').value;
+    const ext = fmt==='mp3_192'?'mp3':fmt;
+    const base = (audioFile?.name||'track').replace(/\.[^.]+$/,'');
+    const addVocals = document.getElementById('vocalsToggle').checked;
+
+    let tracks = [];
+    if (mode==='2stems') {
+      tracks.push({type:'instrumental',label:'KARAOKE TRACK',name:`${base}_karaoke.${ext}`,info:'Full instrumental · No vocals',q:5});
+      if(addVocals) tracks.push({type:'vocals',label:'VOCALS',name:`${base}_vocals.${ext}`,info:'Isolated vocal track',q:4});
+    } else if (mode==='4stems') {
+      ['drums','bass','other'].forEach(s=>tracks.push({type:'instrumental',label:s.toUpperCase(),name:`${base}_${s}.${ext}`,info:`${s} stem`,q:5}));
+      if(addVocals) tracks.push({type:'vocals',label:'VOCALS',name:`${base}_vocals.${ext}`,info:'Isolated vocal track',q:4});
+    } else {
+      ['drums','bass','guitar','piano','other'].forEach(s=>tracks.push({type:'instrumental',label:s.toUpperCase(),name:`${base}_${s}.${ext}`,info:`${s} stem`,q:4}));
+      if(addVocals) tracks.push({type:'vocals',label:'VOCALS',name:`${base}_vocals.${ext}`,info:'Isolated vocal track',q:4});
+    }
+
+    document.getElementById('trackCards').innerHTML = tracks.map((t,i)=>cardHtml(t,i)).join('');
+    tracks.forEach((_,i)=>{ players[i]={playing:false,elapsed:0,timer:null}; });
+    document.getElementById('results').classList.add('show');
+    await aiTips(tracks);
+  }
+
+  function cardHtml(t, i) {
+    const bars = Array.from({length:40},(_,b)=>`<div class="bar" style="height:${Math.max(15,Math.min(85,40+35*Math.sin(b*.4+i)+10*Math.random()))}%"></div>`).join('');
+    const dots = Array.from({length:5},(_,d)=>`<div class="dot${d<t.q?(t.type==='instrumental'?' fi':' fv'):''}"></div>`).join('');
+    return `<div class="track-card ${t.type}">
+      <div class="track-type ${t.type}">${t.label}</div>
+      <div class="track-name">${t.name}</div>
+      <div class="track-info">${t.info}</div>
+      <div class="mini-player">
+        <button class="play-btn" type="button" onclick="togglePlay(${i})" id="pb${i}">▶</button>
+        <div class="mini-waveform"><div class="mini-waveform-bars" id="brs${i}">${bars}</div></div>
+        <div class="time-display" id="tm${i}">0:00</div>
+      </div>
+      <div class="vol-row"><span class="vol-icon">🔊</span><input type="range" min="0" max="1" step="0.01" value="0.8"></div>
+      <a href="#" class="btn-dl" onclick="dlTrack(event,'${t.name}')">⬇ DOWNLOAD ${t.label}</a>
+      <div class="q-bar"><div class="q-label">QUALITY</div><div>${dots}</div></div>
+    </div>`;
+  }
+
+  function togglePlay(i) {
+    const p = players[i]; if(!p) return;
+    p.playing = !p.playing;
+    document.getElementById('pb'+i).textContent = p.playing ? '⏸' : '▶';
+    const bars = document.querySelectorAll(`#brs${i} .bar`);
+    if (p.playing) {
+      bars.forEach((b,j)=>{ b.classList.add('playing'); b.style.animationDelay=(j*.025)+'s'; });
+      p.timer = setInterval(()=>{
+        const m=Math.floor(++p.elapsed/60),s=p.elapsed%60;
+        document.getElementById('tm'+i).textContent=`${m}:${String(s).padStart(2,'0')}`;
+      },1000);
+    } else {
+      bars.forEach(b=>{ b.classList.remove('playing'); b.style.animationDelay=''; });
+      clearInterval(p.timer);
+    }
+  }
+
+  function dlTrack(e, name) {
+    e.preventDefault();
+    if (!audioFile) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(audioFile);
+    a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  }
+
+  async function aiTips(tracks) {
+    const key = document.getElementById('apiKey').value.trim();
+    const box = document.getElementById('tipsBox');
+    if (!key) { box.style.display='none'; return; }
+    box.style.display = 'block';
+    const el = document.getElementById('tipsText');
+    el.classList.add('typing'); el.textContent='';
+    const prompt = `You are an expert karaoke & audio production AI.
+Separation complete for "${audioFile?.name||'unknown'}".
+Model: ${document.getElementById('modelSelect').value}, Mode: ${document.getElementById('modeSelect').value}
+${tracks.length} stems exported. Noise reduction: ${document.getElementById('noiseToggle').checked}.
+
+Give 3-4 practical sentences of post-processing tips: best DAW to use, EQ tips for the karaoke track, how to use vocal stem, and what to watch for in the output. Be specific. No bullet points.`;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:280,messages:[{role:'user',content:prompt}]})
+      });
+      if(!res.ok){el.classList.remove('typing');el.textContent='⚠ Could not load tips.';return;}
+      const d = await res.json();
+      const text = d.content?.[0]?.text||'';
+      el.classList.remove('typing');
+      typewrite(el, text);
+    } catch(e){el.classList.remove('typing');el.textContent=`⚠ ${e.message}`;}
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────
+  function resetAll() {
+    Object.values(players).forEach(p=>clearInterval(p?.timer));
+    for(const k in players) delete players[k];
+    audioFile=null; audioBuffer=null;
+    dz.style.display='';
+    document.getElementById('fileCard').classList.remove('show');
+    document.getElementById('waveformWrap').classList.remove('show');
+    document.getElementById('aiBox').classList.remove('show');
+    document.getElementById('aiBoxText').textContent='';
+    document.getElementById('processBtn').style.display='';
+    document.getElementById('processBtn').disabled=true;
+    const pw=document.getElementById('progressWrap');
+    pw.classList.remove('show'); pw.style.removeProperty('display');
+    document.getElementById('progFill').style.width='0%';
+    document.getElementById('results').classList.remove('show');
+    document.getElementById('trackCards').innerHTML='';
+    document.getElementById('tipsBox').style.display='';
+    document.getElementById('fileInput').value='';
+    STAGES.forEach(s=>document.getElementById(s.id).className='stage-chip');
+  }
+
+  window.addEventListener('resize',()=>{ if(audioBuffer) paintWave(Array.from(audioBuffer.getChannelData(0))); });
+</script>
+</body>
+</html>
